@@ -273,10 +273,11 @@ public class Simulation extends Observable implements Observer, Runnable
 				{
 					isBlue = true; //under SC, the number of greens and blues is determined at the start
 				}
-				allAgents.add(new Agent(x, y, isBlue, newAgentTolerance, 2));
+				int money = (int) Math.round(prng.nextDouble()*1000);/////////////////TODO Distribution of wealth
+				allAgents.add(new Agent(x, y, isBlue, newAgentTolerance, 2, money)); ////Add new param richness
 				Agent agentPara = allAgents.get(i);
 
-				Tile currTile = world.getTile(agentPara.posX, agentPara.posY);
+				Tile currTile = world.getTile(agentPara.posX, agentPara.posY);	////Add new param for renda
 
 				if (currTile.hasAgent() == true) // if the tile with the same position as the agent already has an agent, then ...
 				{
@@ -432,7 +433,7 @@ public class Simulation extends Observable implements Observer, Runnable
 		influxPositions = new ArrayList<int[]>(); // list of tiles (defined as x-y int array) that agents will be place on
 		boolean isBlue = true;// migrants are blue
 		double newAgentTolerance;
-
+		int money;
 		while (influxPositions.size() < dinfluxsize) // while the list of positions is smaller than the max number of migrants to be added...
 		{
 			// print("<<flux>> going to findSpace now... influxsize: " + influxsize + ". influxPositions.size(): " + influxPositions.size());
@@ -447,13 +448,15 @@ public class Simulation extends Observable implements Observer, Runnable
 		// now that we have all the positions in the arraylist, we loop through the list, placing a new migrant at each position.
 		for (int i = 0; i < influxPositions.size(); i++)
 		{
+			money = (int) Math.round(prng.nextDouble()*1000);/////////////////TODO Distribution of wealth
 			//because we have different type of influxes, they result in a different kind of blue population:
+			
 			newAgentTolerance = generateThreshold(); //1 uniform
 
-			if (world.getTile(influxPositions.get(i)[0], influxPositions.get(i)[1]).addAgent(isBlue, 2, newAgentTolerance))
+			if (world.getTile(influxPositions.get(i)[0], influxPositions.get(i)[1]).addAgent(isBlue, 2, newAgentTolerance,money))
 			{   // if the agent is indeed placed in the world..
 				// ...then proceed to add that migrant to the migrant list, using the same position ofc
-				allAgents.add(new Agent(influxPositions.get(i)[0], influxPositions.get(i)[1], isBlue, newAgentTolerance, 2));
+				allAgents.add(new Agent(influxPositions.get(i)[0], influxPositions.get(i)[1], isBlue, newAgentTolerance, 2, money));
 			}
 		}
 
@@ -982,8 +985,8 @@ public class Simulation extends Observable implements Observer, Runnable
 		double prefMax = 93.00; //meaning always one different is tolerated
 		double oldPref = Double.valueOf(df2.format(currAgent.getThreshold())); // say, 75%, rounded to 2 decimal places
 		double newPref = -44;
-		double prefDecrement = -m;
-		double prefIncrement = m;
+		double prefDecrement = -m/2;
+		double prefIncrement = m/2;
 		int same;
 		int diff;
 
@@ -1066,14 +1069,82 @@ public class Simulation extends Observable implements Observer, Runnable
 			print("<<updatePreferences>>differents: " + diff + ". tot: " + tot + ". ");
 			System.exit(0);
 		}
-
+		//////////////////
+		//Adicionar novo metodo para pesar com a riqueza
+		newPref += updatePreferencesRichness(currAgent)/2;
+		//////////////////
 		if (newPref != oldPref)
 		{
 			currAgent.setThreshold(newPref);
 			int[] apos = currAgent.getPosition();
 			world.getTile(apos[0], apos[1]).setAgentAvgF(newPref);
+			world.getTile(apos[0], apos[1]).setagentRichness(currAgent.getRichness());
+			
 		}
 	}
+
+	private double updatePreferencesRichness(Agent currAgent) {
+	    double alpha = 4.0;  // strength of racial tolerance effect
+	    double beta = 6.0;   // strength of wealth gap effect
+
+	    double agentRichness = currAgent.getRichness(); // 0.0–1.0
+	    double neighborhoodRichness = 0.0;
+	    int count = 0;
+
+	    int[] pos = currAgent.getPosition();
+	    int x = pos[0];
+	    int y = pos[1];
+
+	    // Loop through Moore neighborhood (8 tiles)
+	    for (int dx = -1; dx <= 1; dx++) {
+	        for (int dy = -1; dy <= 1; dy++) {
+	            // Skip the center tile (the agent itself)
+	            if (dx == 0 && dy == 0) continue;
+
+	            int nx = x + dx;
+	            int ny = y + dy;
+
+	            // Ensure the neighbor coordinates are inside world bounds
+	            if (nx >= 0 && nx < world.getSizeX() && ny >= 0 && ny < world.getSizeY()) {
+	                Tile neighborTile = world.getTile(nx, ny);
+	                if (neighborTile != null && neighborTile.hasAgent()) {
+	                    neighborhoodRichness += neighborTile.getagentRichness();
+	                    count++;
+	                }
+	            }
+	        }
+	    }
+
+	    // Compute average neighbor richness (if any)
+	    if (count > 0) {
+	        neighborhoodRichness /= count;
+	    } else {
+	        return 0; // isolated agent → no richness effect
+	    }
+
+	    // --- Apply social behavior logic ---
+
+	    // Richer → more tolerant racially (lower threshold)
+	    double racialEffect = -alpha * (agentRichness - 0.5);
+
+	    // Richer compared to neighbors → less tolerant due to wealth disparity
+	    double wealthGap = agentRichness - neighborhoodRichness;
+	    double wealthGapEffect = beta * wealthGap;
+
+	    // Combine both effects
+	    double adjustment = racialEffect + wealthGapEffect;
+
+	    // --- Scale the adjustment into the range [-1, 1] ---
+	    double maxPossible = alpha + beta; // maximum expected combined magnitude
+	    adjustment = adjustment / maxPossible;
+
+	    // Clamp to avoid overshoot due to rounding
+	    if (adjustment > 1.0) adjustment = 1.0;
+	    if (adjustment < -1.0) adjustment = -1.0;
+
+	    return adjustment;
+	}
+
 
 	/**
 	 * the agent movement method.<br>
@@ -1197,14 +1268,23 @@ public class Simulation extends Observable implements Observer, Runnable
 				surroundingInfo = checkNBH(emptyTiles.get(consideredTiles[i]).position);
 				allInfo[0] = emptyTiles.get(consideredTiles[i]).position[0]; // x coordinate
 				allInfo[1] = emptyTiles.get(consideredTiles[i]).position[1]; // y coordinate
-
+				///
+				double tileCost = emptyTiles.get(consideredTiles[i]).richness;
+				total = (double) allInfo[2] + (double) allInfo[3];
+				double comfort = (double) allInfo[2] / total; // fraction of same-type neighbors
+				double threshold = curA.getThreshold() / 100.0;
+				double alpha = 0.5;  // importance of comfort
+				double beta = 0.5;   // importance of cost
+				double normalizedCost = 1.0 - tileCost;  // lower cost = higher utility
+				double utility = (alpha * comfort) + (beta * normalizedCost);
+				///
 				if (curA.isBlue) // if agent is blue, ...
 				{
 					allInfo[2] = surroundingInfo[0]; // samecount is set to blue
 					allInfo[3] = surroundingInfo[1]; // and differentcount is green
-					total = (double) allInfo[2] + (double) allInfo[3];
+					//total = (double) allInfo[2] + (double) allInfo[3];
 					//print("<<moveToABetterPlace>>" + (double) allInfo[2] + "/"  + total + " >= " + (curA.getThreshold()/100) + "? " + ((double) allInfo[2] / total >= curA.getThreshold()/100));
-					if ((double) allInfo[2] / total >= (curA.getThreshold() / 100))
+					if (utility >= threshold)
 					{
 						allInfo[4] = 1; // this is less punishing. utility is set to 1 no matter how much better
 										// the tile is, as long as it's over the threshold it's fine
@@ -1216,9 +1296,9 @@ public class Simulation extends Observable implements Observer, Runnable
 				{
 					allInfo[2] = surroundingInfo[1]; // then samecount is set to green
 					allInfo[3] = surroundingInfo[0]; // and differentcount is blue
-					total = (double) allInfo[2] + (double) allInfo[3];
+					//total = (double) allInfo[2] + (double) allInfo[3];
 
-					if ((double) allInfo[2] / total >= (curA.getThreshold() / 100))
+					if (utility >= threshold)
 					{
 						allInfo[4] = 1;
 					}
@@ -1365,6 +1445,10 @@ public class Simulation extends Observable implements Observer, Runnable
 				amHappy = 0; // unhappy
 			}
 		}
+		
+		//////////////
+		/// Change How hapiness is calculated
+		///////////////
 
 		if (amHappy != 2)
 		{

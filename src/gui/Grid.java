@@ -32,6 +32,15 @@ public class Grid extends JPanel implements Observer, EventListener
 	int[] red3 = { 253, 141, 60 };
 	int[] red2 = { 254, 204, 92 };
 	int[] red1 = { 255, 255, 178 };
+	
+	// Add this for multiple views
+	public enum ViewMode { COLOR, SEGREGATION, RICHNESS }
+	ViewMode viewMode = ViewMode.COLOR;
+
+	public void setViewMode(ViewMode mode) {
+	    this.viewMode = mode;
+	    repaint();
+	}
 
 	public Grid(World startWorld, boolean viewFTog)
 	{
@@ -80,53 +89,43 @@ public class Grid extends JPanel implements Observer, EventListener
 				y = j * rectHeight;
 				Tile currTile = world.getTile(i, j);
 
-				if (currTile.hasAgent())
-				{
-					if (viewF == false)
-					{
-						if (currTile.isAgentBlue() == true)
-						{
-							g.setColor(new Color(45, 45, 212)); //medium blue, #2d2dd4 
-						}
-						else if (currTile.isAgentBlue() == false)
-						{
-							g.setColor(new Color(133, 231, 19)); // lawn green, #85e713
-						}
-						else
-						{
-							g.setColor(Color.pink); //this shouldn't happen
-						}
-					}
-					else if (viewF == true) //we want to view the segregation values, not the colours
-					{
-						double tol = currTile.getT();
-						if (tol < 20.00)
-						{
-							g.setColor(new Color(red1[0], red1[1], red1[2]));
-						}
-						else if (tol > 20.00 && tol < 40.00)
-						{
-							g.setColor(new Color(red2[0], red2[1], red2[2]));
-						}
-						else if (tol > 40.00 && tol < 60.00)
-						{
-							g.setColor(new Color(red3[0], red3[1], red3[2]));
-						}
-						else if (tol > 60.00 && tol < 80.00)
-						{
-							g.setColor(new Color(red4[0], red4[1], red4[2]));
-						}
-						else if (tol > 80.00)
-						{
-							g.setColor(new Color(red5[0], red5[1], red5[2]));
-						}
-						else
-						{
-							g.setColor(Color.pink); //should not happen.
-						}
-					}
+				if (currTile.hasAgent()) {
+				    switch(viewMode) {
+				        case COLOR:
+				            if (currTile.isAgentBlue()) g.setColor(new Color(45,45,212));
+				            else g.setColor(new Color(133,231,19));
+				            break;
+				        case SEGREGATION:
+				            double tol = currTile.getT();
+				            if (tol < 20) g.setColor(new Color(red1[0],red1[1],red1[2]));
+				            else if (tol < 40) g.setColor(new Color(red2[0],red2[1],red2[2]));
+				            else if (tol < 60) g.setColor(new Color(red3[0],red3[1],red3[2]));
+				            else if (tol < 80) g.setColor(new Color(red4[0],red4[1],red4[2]));
+				            else g.setColor(new Color(red5[0],red5[1],red5[2]));
+				            break;
+				        case RICHNESS:
+				            if (currTile.hasAgent()) {
+				                // Normalize money to 0–1
+				                double moneyNorm = currTile.getagentRichness() / 1000.0;
 
+				                // Apply exponential scaling
+				                double moneyExp = Math.pow(moneyNorm, 3);
+
+				                // Convert to intensity (cap at 200 to avoid red)
+				                int intensity = (int) Math.round(moneyExp * 200);
+				                intensity = Math.max(0, Math.min(200, intensity));
+
+				                // Yellow gradient
+				                g.setColor(new Color(255, 255 - intensity, 0));
+				            } else {
+				                g.setColor(Color.white);
+				            }
+				            break;
+
+
+				    }
 				}
+
 				else if (currTile.isBestStart)
 				{
 					g.setColor(new Color(85, 26, 139)); //Purple #551A8B

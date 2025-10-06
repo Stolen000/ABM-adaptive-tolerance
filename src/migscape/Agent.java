@@ -17,6 +17,7 @@ public class Agent
 	public int isHappy = 2;
 	public double threshold; // % of similar WANTED
 	public LinkedList<Double> memory;
+	public int richness; //
 	
 	public Agent(int setPosX, int setPosY, boolean isBlue, double thethreshold, int happeh)
 	{
@@ -28,6 +29,21 @@ public class Agent
 		isHappy = happeh; //agent creation defaults to no happiness which should be determined by agents later on
 		threshold = thethreshold;
 		memory = new LinkedList<Double>();
+		this.richness = 0;
+		
+	}
+	public Agent(int setPosX, int setPosY, boolean isBlue, double thethreshold, int happeh, int richness)
+	{
+		posX = setPosX;
+		posY = setPosY;
+		pos[0] = setPosX;
+		pos[1] = setPosY;
+		this.isBlue = isBlue; //blue or green agents
+		isHappy = happeh; //agent creation defaults to no happiness which should be determined by agents later on
+		threshold = thethreshold;
+		memory = new LinkedList<Double>();
+		this.richness = richness;
+		
 	}
 	public void setPosition(int newPosX, int newPosY)
 	{
@@ -56,5 +72,15 @@ public class Agent
 	public int getHappy()
 	{
 		return isHappy;
+	}
+	
+	public int getRichness() 
+	{
+		return richness;
+	}
+	
+	public void setRichness(int richness) 
+	{
+		this.richness = richness;
 	}
 }

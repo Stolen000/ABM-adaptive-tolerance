@@ -20,6 +20,8 @@ public class Tile
 	public boolean isStartCandidate;
 	int appealint;
 	double agentTolerance;
+	public int richness;
+	public int agentRichness;
 
 	public Tile(int newPosX, int newPosY)
 	{
@@ -31,6 +33,8 @@ public class Tile
 		isStartCandidate = false;
 		agentTolerance = -7.0;
 		appealint =  -9;
+		richness = -10;
+		agentRichness = -11;
 	}
 	public void setAppeal(int newappeal)
 	{
@@ -122,6 +126,26 @@ public class Tile
 		//System.out.println("<<Tile.addAgent>> agent added. isItBlue is " + isItBlue);
 		return true;
 	}
+	
+	public boolean addAgent(boolean isItBlue, int isItHappy, double f, int agentRichness)
+	{
+
+		if (this.hasAgent) return false;
+		hasAgent = true;
+		if (isItBlue)
+		{
+			isBlue = true;
+		}
+		else
+		{
+			isBlue = false;
+		}
+		agentTolerance = f;
+		isHappy = isItHappy;
+		this.agentRichness = agentRichness;
+		//System.out.println("<<Tile.addAgent>> agent added. isItBlue is " + isItBlue);
+		return true;
+	}
 
 	public int[] getPosition()
 	{
@@ -132,6 +156,26 @@ public class Tile
 	{
 		position[0] = newPosition[0];
 		position[1] = newPosition[1];
+	}
+	
+	public int getRichness() 
+	{
+		return richness;
+	}
+	
+	public void setRichness(int richness) 
+	{
+		this.richness = richness;
+	}
+	
+	public int getagentRichness() 
+	{
+		return agentRichness;
+	}
+	
+	public void setagentRichness(int agentRichness) 
+	{
+		this.agentRichness = agentRichness;
 	}
 
 
