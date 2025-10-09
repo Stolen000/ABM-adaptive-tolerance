@@ -34,7 +34,7 @@ public class Grid extends JPanel implements Observer, EventListener
 	int[] red1 = { 255, 255, 178 };
 	
 	// Add this for multiple views
-	public enum ViewMode { COLOR, SEGREGATION, RICHNESS }
+	public enum ViewMode { COLOR, SEGREGATION, RICHNESS, RENT, AFFORDABILITY, HAPPINESS }
 	ViewMode viewMode = ViewMode.COLOR;
 
 	public void setViewMode(ViewMode mode) {
@@ -105,25 +105,91 @@ public class Grid extends JPanel implements Observer, EventListener
 				            break;
 				        case RICHNESS:
 				            if (currTile.hasAgent()) {
-				                // Normalize money to 0–1
-				                double moneyNorm = currTile.getagentRichness() / 1000.0;
+				                double income = currTile.getagentRichness();
 
-				                // Apply exponential scaling
-				                double moneyExp = Math.pow(moneyNorm, 3);
+				                // Normalize income to [0,1] based on an expected cap (e.g. 3× mean)
+				                double meanIncome = 500; // or pass from your simulation state
+				                double cap = 3.0 * meanIncome;
+				                double norm = Math.min(income / cap, 1.0);
 
-				                // Convert to intensity (cap at 200 to avoid red)
-				                int intensity = (int) Math.round(moneyExp * 200);
-				                intensity = Math.max(0, Math.min(200, intensity));
+				                // Smooth contrast using a sigmoid to better spread low/mid incomes
+				                double smooth = 1.0 / (1.0 + Math.exp(-6 * (norm - 0.5)));
 
-				                // Yellow gradient
-				                g.setColor(new Color(255, 255 - intensity, 0));
-				            } else {
-				                g.setColor(Color.white);
+				                // Map: low income = blue → mid = green → high = yellow/red
+				                float hue = (float) (0.66 - 0.66 * smooth); // 0.66 = blue, 0 = red
+				                float sat = 0.9f;
+				                float bri = 0.75f;
+
+				                g.setColor(Color.getHSBColor(hue, sat, bri));
+				                break;
 				            }
+
+				        case RENT:
+				            double rent = currTile.getRent();
+
+				            // Nonlinear normalization: accentuate high values
+				            double rentNorm = Math.min(rent / 1000.0, 1.0);
+				            rentNorm = Math.pow(rentNorm, 1.8); // emphasize upper range (try 1.3–2.0)
+
+				            // Hue: low rent → blue (0.66), high rent → red (0.0)
+				            float rentHue = (float)(0.66 - 0.66 * rentNorm);
+
+				            // Saturation and brightness vary slightly with rent for stronger contrast
+				            float rentSat = (float)(0.5 + 0.5 * rentNorm);   // 0.5–1.0 saturation
+				            float rentBri = (float)(0.6 + 0.4 * (1.0 - rentNorm)); // 1→0.6 brightness
+
+				            g.setColor(Color.getHSBColor(rentHue, rentSat, rentBri));
 				            break;
 
 
-				    }
+
+			            case HAPPINESS:
+			                int isHAP = currTile.isAgentHappy(); // 0 or 1 (set in updateHappiness)
+			                // if tile empty, show white
+			                if (!currTile.hasAgent()) {
+			                    g.setColor(Color.white);
+			                    break;
+			                }
+
+			                if (isHAP == 1) {
+			                    // Happy → green
+			                    g.setColor(new Color(0, 200, 0));
+			                } else if (isHAP == 0) {
+			                    // Unhappy → red
+			                    g.setColor(new Color(220, 0, 0));
+			                } else {
+			                    // Neutral/uninitialized → gray
+			                    g.setColor(Color.gray);
+			                }
+			                break;
+
+			            case AFFORDABILITY:
+			                // visualize affordability (income vs rent)
+			                if (!currTile.hasAgent()) {
+			                    g.setColor(Color.white);
+			                    break;
+			                }
+
+			                double income = currTile.getagentRichness();
+			                double therent   = currTile.getRent();
+			                double afford = 1.0 / (1.0 + Math.exp((therent - income) / 200.0));
+
+			                // Affordability gradient:
+			                //   Green → easily affordable (≥0.7)
+			                //   Yellow → borderline (~0.3–0.7)
+			                //   Red → unaffordable (<0.3)
+			                if (afford < 0.3) {
+			                    g.setColor(new Color(220, 0, 0));        // red
+			                
+			                } else {
+			                    g.setColor(new Color(0, 180, 0));        // green
+			                }
+
+			                break;
+
+				        }
+
+				    
 				}
 
 				else if (currTile.isBestStart)

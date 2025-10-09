@@ -21,7 +21,9 @@ public class Tile
 	int appealint;
 	double agentTolerance;
 	public int richness;
+	public double rent;
 	public int agentRichness;
+	public int agentSocialClass;
 
 	public Tile(int newPosX, int newPosY)
 	{
@@ -35,6 +37,8 @@ public class Tile
 		appealint =  -9;
 		richness = -10;
 		agentRichness = -11;
+		agentSocialClass = -12;
+		rent = -13;
 	}
 	public void setAppeal(int newappeal)
 	{
@@ -127,7 +131,7 @@ public class Tile
 		return true;
 	}
 	
-	public boolean addAgent(boolean isItBlue, int isItHappy, double f, int agentRichness)
+	public boolean addAgent(boolean isItBlue, int isItHappy, double f, int agentRichness, int agentSocialClass)
 	{
 
 		if (this.hasAgent) return false;
@@ -143,6 +147,7 @@ public class Tile
 		agentTolerance = f;
 		isHappy = isItHappy;
 		this.agentRichness = agentRichness;
+		this.agentSocialClass = agentSocialClass;
 		//System.out.println("<<Tile.addAgent>> agent added. isItBlue is " + isItBlue);
 		return true;
 	}
@@ -168,15 +173,34 @@ public class Tile
 		this.richness = richness;
 	}
 	
+
 	public int getagentRichness() 
 	{
 		return agentRichness;
 	}
 	
+	
 	public void setagentRichness(int agentRichness) 
 	{
 		this.agentRichness = agentRichness;
+		
+	}
+	public void setagentSocialClass(int agentSocialClass) 
+	{
+		this.agentSocialClass = agentSocialClass;
+	}
+	
+	public int getagentSocialClass() 
+	{
+		return agentSocialClass;
+	}
+	
+	public double getRent() {
+		return rent;
 	}
 
+	public void setRent(double cost) {
+		this.rent = cost;
+	}
 
 }

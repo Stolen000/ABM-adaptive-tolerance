@@ -76,9 +76,9 @@ public class SimController extends Observable implements Runnable, Observer
 		{
 			if (rule == 0) //manual setup, for testing
 			{
-				simPara = new int[] { sims, 100 }; //numSim, numTicks 
-				mapPara = new int[] { 50, 99 }; //green ratio, final-density
-				influxPara = new int[] { 0, 0 }; //influxONOFF, influxcount
+				simPara = new int[] { sims, 500 }; //numSim, numTicks 
+				mapPara = new int[] { 70, 80 }; //green ratio, final-density
+				influxPara = new int[] { 0, 4 }; //influxONOFF, influxcount
 				addedPara = new int[] { 30, 1 }; // w, m 
 			}
 			else if (rule == 1) //random effects setup. randomise parameters.
@@ -91,7 +91,7 @@ public class SimController extends Observable implements Runnable, Observer
 				int td = randInt(75, 98); //target density
 				int m = randInt(1, 40); // 10Oct16: changed to max of 40% rather than 99% for theoretical reasons
 				int[] infcoptions = { 1, 4, 15, 100 };
-				int isInfluxOn = randInt(0, 4);
+				int isInfluxOn = randInt(1, 4);
 				int w = randInt(25, 125);
 
 				if (isInfluxOn != 0) // influx ON should be more likely. 4 influx possibilities and 1 non-possibility.

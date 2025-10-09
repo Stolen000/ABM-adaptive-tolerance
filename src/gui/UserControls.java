@@ -105,17 +105,30 @@ public class UserControls extends JPanel implements Observer
 		});
 
 		viewFToggle.addActionListener(e -> {
-		    if (grid.viewMode == Grid.ViewMode.COLOR) {
+		    if (grid.viewMode == Grid.ViewMode.HAPPINESS) {
 		        grid.setViewMode(Grid.ViewMode.SEGREGATION);
 		        viewFToggle.setText("Segregation");
+
 		    } else if (grid.viewMode == Grid.ViewMode.SEGREGATION) {
 		        grid.setViewMode(Grid.ViewMode.RICHNESS);
 		        viewFToggle.setText("Richness");
-		    } else {
-		        grid.setViewMode(Grid.ViewMode.COLOR);
-		        viewFToggle.setText("Colors");
-		    }
+
+		    } else if (grid.viewMode == Grid.ViewMode.RICHNESS) {
+		        grid.setViewMode(Grid.ViewMode.RENT);
+		        viewFToggle.setText("Rent");
+
+		    } else if  (grid.viewMode == Grid.ViewMode.RENT){
+		        grid.setViewMode(Grid.ViewMode.AFFORDABILITY);
+		        viewFToggle.setText("Affordability");
+
+		    } 
+		    else  {
+		        grid.setViewMode(Grid.ViewMode.HAPPINESS);
+		        viewFToggle.setText("Happiness");
+
+		    } 
 		});
+
 
 
 		pauseToggle.addActionListener(new ActionListener()

@@ -18,6 +18,7 @@ public class Agent
 	public double threshold; // % of similar WANTED
 	public LinkedList<Double> memory;
 	public int richness; //
+	public int socialClass;
 	
 	public Agent(int setPosX, int setPosY, boolean isBlue, double thethreshold, int happeh)
 	{
@@ -30,9 +31,11 @@ public class Agent
 		threshold = thethreshold;
 		memory = new LinkedList<Double>();
 		this.richness = 0;
+		this.socialClass = 0;
+
 		
 	}
-	public Agent(int setPosX, int setPosY, boolean isBlue, double thethreshold, int happeh, int richness)
+	public Agent(int setPosX, int setPosY, boolean isBlue, double thethreshold, int happeh, int richness, int socialClass)
 	{
 		posX = setPosX;
 		posY = setPosY;
@@ -43,6 +46,7 @@ public class Agent
 		threshold = thethreshold;
 		memory = new LinkedList<Double>();
 		this.richness = richness;
+		this.socialClass = socialClass;
 		
 	}
 	public void setPosition(int newPosX, int newPosY)
@@ -82,5 +86,15 @@ public class Agent
 	public void setRichness(int richness) 
 	{
 		this.richness = richness;
+	}
+	
+	public int getSocialClass() 
+	{
+		return socialClass;
+	}
+	
+	public void setSocialClass(int socialClass) 
+	{
+		this.socialClass = socialClass;
 	}
 }

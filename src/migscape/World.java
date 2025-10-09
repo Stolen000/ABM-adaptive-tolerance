@@ -79,7 +79,7 @@ public class World extends Observable implements Observer
 		theWorld[x][y].removeAgent();
 	}
 
-	public boolean placeAgentOnTile(int x, int y, boolean isBlue, int isHappy, double T)
+	public boolean placeAgentOnTile(int x, int y, boolean isBlue, int isHappy, double T, int richness, int socialClass)
 	{
 		if (x >= sizeX || x < 0)
 		{
@@ -99,7 +99,7 @@ public class World extends Observable implements Observer
 			print("Tile " + theWorld[x][y].getPosition()[0] + "," + theWorld[x][y].getPosition()[1] + " already has an agent.");
 			return false;
 		}
-		return theWorld[x][y].addAgent(isBlue, isHappy, T);
+		return theWorld[x][y].addAgent(isBlue, isHappy, T, richness, socialClass);
 
 	}
 
