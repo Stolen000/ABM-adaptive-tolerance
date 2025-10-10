@@ -113,9 +113,9 @@ public class Simulation extends Observable implements Observer, Runnable
 	
 	// ---- cost formula params ----
 	double BASELINE_COST   = 100;   // baseline cost level
-	double INCOME_SENSIVITY = 0.9;   // sensitivity to neighborhood income m(p)
-	double LOW_DENSITY_SENSIVITY = 0;   // vacancy discount strength (subtracts cost)
-	double HIGH_DENSITY_SENSIVITY  = 0;   // density surcharge strength (adds cost)
+	double INCOME_SENSIVITY = 0.8;   // sensitivity to neighborhood income m(p)
+	double LOW_DENSITY_SENSIVITY = 0.65;   // vacancy discount strength (subtracts cost)
+	double HIGH_DENSITY_SENSIVITY  = 0.4;   // density surcharge strength (adds cost)
 
 	// smoothing to avoid jitter
 	double ALPHA = 0.3;  // cost_t = (1-ALPHA)*cost_{t-1} + ALPHA*cost_hat;  0=no update, 1=no smoothing
@@ -348,7 +348,7 @@ public class Simulation extends Observable implements Observer, Runnable
 				}
 				int money = generateAgentIncome(500, 0.35, System.nanoTime());
 				int socialClass = classifyIncome(money, 500);
-				allAgents.add(new Agent(x, y, isBlue, newAgentTolerance, 2, money, socialClass)); ////Add new param richness
+				allAgents.add(new Agent(x, y, isBlue, newAgentTolerance, 2, money, socialClass, generateThreshold())); ////Add new param richness
 				Agent agentPara = allAgents.get(i);
 				
 
@@ -386,7 +386,7 @@ public class Simulation extends Observable implements Observer, Runnable
 				double newagenttolerance = generateThreshold(); // uniform
 				int money = generateAgentIncome(500, 0.35, System.nanoTime());
 				int socialClass = classifyIncome(money, 500);
-				allAgents.add(new Agent(x, y, isBlue, newagenttolerance, 2, money, socialClass));
+				allAgents.add(new Agent(x, y, isBlue, newagenttolerance, 2, money, socialClass, generateThreshold()));
 				Agent agentPara = allAgents.get(i);
 
 				Tile currTile = world.getTile(agentPara.posX, agentPara.posY);
@@ -1609,7 +1609,7 @@ public class Simulation extends Observable implements Observer, Runnable
 			if (world.getTile(influxPositions.get(i)[0], influxPositions.get(i)[1]).addAgent(isBlue, 2, newAgentTolerance, money, socialClass))
 			{   // if the agent is indeed placed in the world..
 				// ...then proceed to add that migrant to the migrant list, using the same position ofc
-				allAgents.add(new Agent(influxPositions.get(i)[0], influxPositions.get(i)[1], isBlue, newAgentTolerance, 2, money, socialClass));
+				allAgents.add(new Agent(influxPositions.get(i)[0], influxPositions.get(i)[1], isBlue, newAgentTolerance, 2, money, socialClass, generateThreshold()));
 				
 			}
 		}

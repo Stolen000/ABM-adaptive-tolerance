@@ -44,6 +44,7 @@ public class MigFrame extends JFrame
 		mainPanel.setSize(world.getSizeX()*10, world.getSizeY()*10);
 		grid.setSize(new Dimension(world.getSizeX()*10, world.getSizeY()*10));
 		gridF.setSize(new Dimension(world.getSizeX()*10, world.getSizeY()*10));
+		gridF.setViewMode(Grid.ViewMode.RENT);
 		ui.setSize(new Dimension(world.getSizeY()*10, 50));
 		para.setSize(new Dimension(world.getSizeY()*10, 50));
 		this.add(grid, BorderLayout.CENTER);
