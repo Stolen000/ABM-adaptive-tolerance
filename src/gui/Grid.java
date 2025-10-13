@@ -181,7 +181,12 @@ public class Grid extends JPanel implements Observer, EventListener
 			                if (afford < 0.3) {
 			                    g.setColor(new Color(220, 0, 0));        // red
 			                
-			                } else {
+			                }
+			                else if (afford >= 0.3 && afford < 0.7)
+			                {
+			                	g.setColor(new Color(255, 255, 0));
+			                }
+			                else {
 			                    g.setColor(new Color(0, 180, 0));        // green
 			                }
 

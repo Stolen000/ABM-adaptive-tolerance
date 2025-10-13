@@ -122,6 +122,10 @@ public class UserControls extends JPanel implements Observer
 		        viewFToggle.setText("Affordability");
 
 		    } 
+		    else if (grid.viewMode == Grid.ViewMode.HAPPINESS) {
+		    	grid.setViewMode(Grid.ViewMode.COLOR);
+		    	viewFToggle.setText("Color");
+		    }
 		    else  {
 		        grid.setViewMode(Grid.ViewMode.HAPPINESS);
 		        viewFToggle.setText("Happiness");

@@ -76,8 +76,8 @@ public class SimController extends Observable implements Runnable, Observer
 		{
 			if (rule == 0) //manual setup, for testing
 			{
-				simPara = new int[] { sims, 50000 }; //numSim, numTicks 
-				mapPara = new int[] { 70, 95 }; //green ratio, final-density
+				simPara = new int[] { sims, 1000000 }; //numSim, numTicks 
+				mapPara = new int[] { 50, 75 }; //green ratio, final-density
 				influxPara = new int[] { 0, 4 }; //influxONOFF, influxcount
 				addedPara = new int[] { 30, 1 }; // w, m 
 			}

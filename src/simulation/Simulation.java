@@ -93,7 +93,7 @@ public class Simulation extends Observable implements Observer, Runnable
 	boolean utilityOn = true;
 	int changedMind = 0;
 	int influx = -1;
-	private static final int SAMPLING_INTERVAL = 50;
+	private static final int SAMPLING_INTERVAL = 10;
 	int fluxcounter = 0;
 	private int NUM_FLUXES = -2;
 	private ArrayList<int[]> TICKS_OF_FLUX = new ArrayList<int[]>();
@@ -103,8 +103,8 @@ public class Simulation extends Observable implements Observer, Runnable
 	
 	
 	
-    final double W_COLOR = 0; // weight for race similarity
-    final double W_CLASS = 1; // weight for class similarity
+    final double W_COLOR = 0.5; // weight for race similarity
+    final double W_CLASS = 0.5; // weight for class similarity
     
     
 	final double AFFORDABILITY = 0.3; // threshold for tile affordability
@@ -114,14 +114,14 @@ public class Simulation extends Observable implements Observer, Runnable
 	// ---- cost formula params ----
 	double BASELINE_COST   = 100;   // baseline cost level
 	double INCOME_SENSIVITY = 0.8;   // sensitivity to neighborhood income m(p)
-	double LOW_DENSITY_SENSIVITY = 0.65;   // vacancy discount strength (subtracts cost)
+	double LOW_DENSITY_SENSIVITY = 0.45;   // vacancy discount strength (subtracts cost)
 	double HIGH_DENSITY_SENSIVITY  = 0.4;   // density surcharge strength (adds cost)
 
 	// smoothing to avoid jitter
 	double ALPHA = 0.3;  // cost_t = (1-ALPHA)*cost_{t-1} + ALPHA*cost_hat;  0=no update, 1=no smoothing
 
 	// neighborhood window (Moore radius); 3 ≈ 7x7
-	final int RENT_RADIUS = 5;
+	final int RENT_RADIUS = 2;
     final int SOCIAL_CLASS_RADIUS = 2;      // Moore radius for class neighborhood
 
 	// income normalization
@@ -533,7 +533,9 @@ public class Simulation extends Observable implements Observer, Runnable
 	    int amHappy = 2;
 
 	    Agent currAgent = allAgents.get(agentIndex);
-	    double threshold = currAgent.getThreshold(); // percent, e.g. 95
+	    double threshold = currAgent.getThreshold();  // percent, e.g. 95
+	    double richnessThreshold = currAgent.getRichnessThreshold();
+	    
 	    double emptyCount = surroundingInfo[2];
 
 	    // --- color similarity (as before) ---
@@ -547,6 +549,7 @@ public class Simulation extends Observable implements Observer, Runnable
 	    }
 	    double totalColor = sameColor + diffColor;
 	    double max = totalColor + emptyCount;
+	    double colorRatio = sameColor / totalColor;
 
 	    // Isolation rule: no neighbors → unhappy
 	    if (emptyCount == max) {
@@ -576,10 +579,26 @@ public class Simulation extends Observable implements Observer, Runnable
 	            clsSameW += sim;
 	            clsDiffW += diff;
 	        }
-
+  
 	        // --- blend race + class into effective similarity (weighted) ---
-	        double sameEff = W_COLOR * sameColor  + W_CLASS * clsSameW;
-	        double diffEff = W_COLOR * diffColor  + W_CLASS * clsDiffW;
+	        double sameEff = 0; 
+		    double diffEff = 0; 
+		    
+		    switch (myClass)
+		    {
+		    	case 0:
+		    		sameEff = 0.2 * sameColor + 0.8 * clsSameW;
+		    		diffEff = 0.2 * diffColor + 0.8 * clsDiffW;
+		    		break;
+		    	case 1:
+		    		sameEff = 0.5 * sameColor + 0.5 * clsSameW;
+		    		diffEff = 0.5 * diffColor + 0.5 * clsDiffW;
+		    		break;
+		    	case 2:
+		    		sameEff = 0.9 * sameColor + 1.0 * clsSameW;
+		    		diffEff = 0.9 * diffColor + 1.0 * clsDiffW;
+		    		break;
+		    }
 	        double totEff  = sameEff + diffEff;
 
 	        // Guard: no counted neighbors
@@ -597,7 +616,7 @@ public class Simulation extends Observable implements Observer, Runnable
 	        // Must both afford AND meet social threshold
 	        if (affordability < AFFORDABILITY ) {
 	            amHappy = 0; // too expensive → unhappy
-	        } else if (similarityPct >= threshold) {
+	        } else if (colorRatio >= threshold) {
 	            amHappy = 1; // socially satisfied and affordable
 	        } else {
 	            amHappy = 0; // socially unsatisfied
@@ -627,10 +646,12 @@ public class Simulation extends Observable implements Observer, Runnable
 	    double prefMin = 5.00;   // meaning always one same must be present
 	    double prefMax = 93.00;  // meaning always one different is tolerated
 	    double oldPref = Double.valueOf(df2.format(currAgent.getThreshold())); // e.g., 75.00
+	    double oldRichPref = Double.valueOf(df2.format(currAgent.getRichnessThreshold())); //Richness preference threshold before any operation for updating
 	    double newPref = -44;
+	    double newRichPref = -44; //Richness preference threshold updated
 
-	    double prefDecrement = -m/2;
-	    double prefIncrement =  m/2;
+	    double prefDecrement = -m;
+	    double prefIncrement =  m;
 
 	    int same, diff;
 	    if (isAgentBlue) {
@@ -667,8 +688,24 @@ public class Simulation extends Observable implements Observer, Runnable
 
 	    // Blend color + class (graded-by-distance)
 
-	    double sameEff = W_COLOR * same + W_CLASS * clsSameW;
-	    double diffEff = W_COLOR * diff  + W_CLASS * clsDiffW;
+	    double sameEff = 0; 
+	    double diffEff = 0; 
+	    
+	    switch (myClass)
+	    {
+	    	case 0:
+	    		sameEff = 0.2 * same + 0.8 * clsSameW;
+	    		diffEff = 0.2 * diff + 0.8 * clsDiffW;
+	    		break;
+	    	case 1:
+	    		sameEff = 0.5 * same + 0.5 * clsSameW;
+	    		diffEff = 0.5 * diff + 0.5 * clsDiffW;
+	    		break;
+	    	case 2:
+	    		sameEff = 0.9 * same + 1.0 * clsSameW;
+	    		diffEff = 0.9 * diff + 1.0 * clsDiffW;
+	    		break;
+	    }
 
 	    double totEff = sameEff + diffEff;
 
@@ -680,7 +717,9 @@ public class Simulation extends Observable implements Observer, Runnable
 	    {
 	        if (diffEff > 0.0) // some “difference” signal exists (from color and/or class distance)
 	        {
+	        	double delta;
 	            if (happy == 1) {
+	            	
 	                newPref = oldPref + prefDecrement; // happy among some different → relax a bit
 	            } else if (happy == 0) {
 	                newPref = oldPref;                 // unhappy → hold steady
@@ -719,7 +758,7 @@ public class Simulation extends Observable implements Observer, Runnable
 	        world.getTile(apos[0], apos[1]).setAgentAvgF(newPref);
 	        world.getTile(apos[0], apos[1]).setagentRichness(currAgent.getRichness());
 	        world.getTile(apos[0], apos[1]).setagentSocialClass(currAgent.getSocialClass());
-	    }
+	    }	
 	}
 	
 	
@@ -1000,8 +1039,24 @@ public class Simulation extends Observable implements Observer, Runnable
 			    // =====================================================================
 
 			    // === 4) Blend race + class into similarity ===========================
-			    double sameEff = W_COLOR * sameColor + W_CLASS * clsSame;
-			    double diffEff = W_COLOR * diffColor + W_CLASS * (clsTot - clsSame);
+			    double sameEff = 0; 
+			    double diffEff = 0; 
+			    
+			    switch (myClass)
+			    {
+			    	case 0:
+			    		sameEff = 0.2 * sameColor + 0.8 * clsSame;
+			    		diffEff = 0.2 * diffColor + 0.8 * (clsTot - clsSame);
+			    		break;
+			    	case 1:
+			    		sameEff = 0.5 * sameColor + 0.5 * clsSame;
+			    		diffEff = 0.5 * diffColor + 0.5 * (clsTot - clsSame);
+			    		break;
+			    	case 2:
+			    		sameEff = 0.9 * sameColor + 1.0 * clsSame;
+			    		diffEff = 0.9 * diffColor + 1.0 * (clsTot - clsSame);
+			    		break;
+			    }
 			    double totEff  = sameEff + diffEff;
 
 			    allInfo[2] = (int)Math.round(sameEff);
@@ -1911,19 +1966,49 @@ public class Simulation extends Observable implements Observer, Runnable
 	private int lin(int x, int y) { return x * sizeY + y; }
 	
 	
-	public int w(int i, int j) {
-	    int[] a = singleDimension(i);
-	    int[] b = singleDimension(j);
+	public int w(int i, int j) // takes two tiles and returns 1 if tiles are adjacent
+	{
+		// what distinguishes neighbouring tiles? They must be a maximum of one
+		// row & one column away
+		// so if rownumber OR columnumber difference is greater than 1 = can't
+		// be adjacent
+		// BUT the word wraps around so the column number has to be reset
+		int isNB = 0;
+		int ix = singleDimension(i)[0];
+		int iy = singleDimension(i)[1];
+		int jx = singleDimension(j)[0];
+		int jy = singleDimension(j)[1];
 
-	    int ix = (a[0] == sizeX - 1) ? 0 : a[0];
-	    int iy = (a[1] == sizeY - 1) ? 0 : a[1];
-	    int jx = (b[0] == sizeX - 1) ? 0 : b[0];
-	    int jy = (b[1] == sizeY - 1) ? 0 : b[1];
+		if (ix == sizeX - 1)
+		{
+			ix = ix - (sizeX - 1);
+		}
+		if (iy == sizeY - 1)
+		{
+			iy = iy - (sizeY - 1);
+		}
+		if (jx == sizeX - 1)
+		{
+			jx = jx - (sizeX - 1);
+		}
+		if (jy == sizeY - 1)
+		{
+			jy = jy - (sizeY - 1);
+		}
 
-	    // check adjacency (difference ≤ 1 in both axes)
-	    if (Math.abs(ix - jx) > 1 || Math.abs(iy - jy) > 1)
-	        return 0;
-	    return 1;
+		if (ix - jx > 1 || ix - jx < -1)
+		{
+			isNB = 0;
+		}
+		else if (iy - jy > 1 || iy - jy < -1)
+		{
+			isNB = 0;
+		}
+		else
+		{
+			isNB = 1;
+		}
+		return isNB;
 	}
 
 	public int[] singleDimension(int i) {
