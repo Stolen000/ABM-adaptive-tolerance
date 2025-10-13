@@ -616,7 +616,7 @@ public class Simulation extends Observable implements Observer, Runnable
 	        // Must both afford AND meet social threshold
 	        if (affordability < AFFORDABILITY ) {
 	            amHappy = 0; // too expensive → unhappy
-	        } else if (colorRatio >= threshold) {
+	        } else if (similarityPct >= threshold) {
 	            amHappy = 1; // socially satisfied and affordable
 	        } else {
 	            amHappy = 0; // socially unsatisfied

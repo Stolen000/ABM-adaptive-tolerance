@@ -75,6 +75,11 @@ public class Agent
 	{
 		return richness_threshold;
 	}
+
+    public void setRichnessThreshold(double newRichnessThreshold)
+    {
+        this.richness_threshold = newRichnessThreshold;
+    }
 	
 	public void setThreshold(double value)
 	{
