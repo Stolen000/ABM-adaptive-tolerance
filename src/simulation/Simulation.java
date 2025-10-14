@@ -2976,13 +2976,13 @@ public class Simulation extends Observable implements Observer, Runnable
 			File f = new File(csvName);
 			boolean boo = f.createNewFile(); // check if file exists: if boolean
 											// is false, file already exists
-			if (boo == false)
-			{
-				// f.delete(); //boolean is false so we delete the existing file...
-				f = new File(csvName + 1); // ...so that we can write a new one instead
-			}
+			//if (boo == false)
+			//{
+			//	// f.delete(); //boolean is false so we delete the existing file...
+			//	f = new File(csvName + 1); // ...so that we can write a new one instead
+			//}
 
-			// Files.createFile(pathToFile);
+			Files.createFile(pathToFile);
 			writer = new CSVWriter(new FileWriter(csvName, true), ','); // once all files and directories are dealt with, we create the filewriter
 			csvHeaderWritten = false;
 		}
