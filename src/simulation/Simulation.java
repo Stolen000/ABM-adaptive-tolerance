@@ -94,7 +94,7 @@ public class Simulation extends Observable implements Observer, Runnable
 	boolean utilityOn = true;
 	int changedMind = 0;
 	int influx = -1;
-	private static final int SAMPLING_INTERVAL = 50;
+	private static final int SAMPLING_INTERVAL = 10;
 	int fluxcounter = 0;
 	private int NUM_FLUXES = -2;
 	private ArrayList<int[]> TICKS_OF_FLUX = new ArrayList<int[]>();
@@ -2961,8 +2961,8 @@ public class Simulation extends Observable implements Observer, Runnable
 		{
 			influxString = "OFF";
 		}
-
-		String longNameRan = "gr" + g + "fd" + fd + influxString + "w" + w + "m" + df4.format(m) + "ngini" + nativeGINI + "mgini" + migrantGINI;
+		Random r  = new Random();
+		String longNameRan = "gr" + g + "fd" + fd + influxString + "w" + w + "m" + df4.format(m) + "ngini" + nativeGINI + "mgini" + migrantGINI + r.nextInt();
 		csvname = longNameRan;
 		String path = "output/";
 		String csvName = path + longNameRan + ".csv";
@@ -2974,15 +2974,15 @@ public class Simulation extends Observable implements Observer, Runnable
 			// Path pathToFile = Paths.get(path + experimentNo + longNameRan + ".csv");
 			Files.createDirectories(pathToFile.getParent());
 			File f = new File(csvName);
-			boolean boo = f.createNewFile(); // check if file exists: if boolean
+			//boolean boo = f.createNewFile(); // check if file exists: if boolean
 											// is false, file already exists
-			if (boo == false)
-			{
-				// f.delete(); //boolean is false so we delete the existing file...
-				f = new File(csvName + 1); // ...so that we can write a new one instead
-			}
+			//if (boo == false)
+			//{
+			//	// f.delete(); //boolean is false so we delete the existing file...
+			//	f = new File(csvName + 1); // ...so that we can write a new one instead
+			//}
 
-			// Files.createFile(pathToFile);
+			Files.createFile(pathToFile);
 			writer = new CSVWriter(new FileWriter(csvName, true), ','); // once all files and directories are dealt with, we create the filewriter
 			csvHeaderWritten = false;
 		}
