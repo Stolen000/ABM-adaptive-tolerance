@@ -103,26 +103,33 @@ public class Grid extends JPanel implements Observer, EventListener
 				            else if (tol < 80) g.setColor(new Color(red4[0],red4[1],red4[2]));
 				            else g.setColor(new Color(red5[0],red5[1],red5[2]));
 				            break;
+				            
 				        case RICHNESS:
 				            if (currTile.hasAgent()) {
-				                double income = currTile.getagentRichness();
+				              
+				                int socialClass = currTile.getagentSocialClass();  // 0 = poor, 1 = middle, 2 = rich
 
-				                // Normalize income to [0,1] based on an expected cap (e.g. 3× mean)
-				                double meanIncome = 500; // or pass from your simulation state
-				                double cap = 3.0 * meanIncome;
-				                double norm = Math.min(income / cap, 1.0);
+				                Color c;
+				                switch (socialClass) {
+				                    case 0: // Poor
+				                        c = new Color(30, 60, 200);  // deep blue
+				                        break;
+				                    case 1: // Middle
+				                        c = new Color(50, 180, 80);  // green
+				                        break;
+				                    case 2: // Rich
+				                        c = new Color(230, 180, 40); // gold/yellow
+				                        break;
+				                    default:
+				                        c = Color.GRAY; // fallback
+				                        break;
+				                }
 
-				                // Smooth contrast using a sigmoid to better spread low/mid incomes
-				                double smooth = 1.0 / (1.0 + Math.exp(-6 * (norm - 0.5)));
-
-				                // Map: low income = blue → mid = green → high = yellow/red
-				                float hue = (float) (0.66 - 0.66 * smooth); // 0.66 = blue, 0 = red
-				                float sat = 0.9f;
-				                float bri = 0.75f;
-
-				                g.setColor(Color.getHSBColor(hue, sat, bri));
-				                break;
+				                g.setColor(c);
 				            }
+				            break;
+
+
 
 				        case RENT:
 				            double rent = currTile.getRent();

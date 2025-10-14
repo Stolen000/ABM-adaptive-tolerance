@@ -69,6 +69,7 @@ public class Simulation extends Observable implements Observer, Runnable
 	double globalAffordability = 0.0;
 	double globalTolerance = 0.0;
 
+
 	double averageTB = 0.0;
 	double averageTG = 0.0;
 	int[] errorcounter = { 0, 0 }; // blue agent error. green agent error
@@ -93,46 +94,54 @@ public class Simulation extends Observable implements Observer, Runnable
 	boolean utilityOn = true;
 	int changedMind = 0;
 	int influx = -1;
-	private static final int SAMPLING_INTERVAL = 10;
+	private static final int SAMPLING_INTERVAL = 50;
 	int fluxcounter = 0;
 	private int NUM_FLUXES = -2;
 	private ArrayList<int[]> TICKS_OF_FLUX = new ArrayList<int[]>();
 	int current_size = -1;
 	int maxfluxsize;
 	int setupMode = -999;
+	boolean csvHeaderWritten = false;
 	
 	
 	
-    final double W_COLOR = 0.5; // weight for race similarity
-    final double W_CLASS = 0.5; // weight for class similarity
+    final double W_COLOR_RICH = 1; // weight for race similarity
+    final double W_CLASS_RICH = 0; // weight for class similarity
+    final double W_COLOR_MEDIUM = 1; // weight for race similarity
+    final double W_CLASS_MEDIUM = 0; // weight for class similarity
+    final double W_COLOR_POOR = 1; // weight for race similarity
+    final double W_CLASS_POOR = 0; // weight for class similarity
     
     
 	final double AFFORDABILITY = 0.3; // threshold for tile affordability
-	final double ALPHA_CLASS = 0.7;  // higher => harsher penalty for class distance
+	final double ALPHA_CLASS = 0.5;  // higher => harsher penalty for class distance
 	
 	
 	// ---- cost formula params ----
-	double BASELINE_COST   = 100;   // baseline cost level
-	double INCOME_SENSIVITY = 0.8;   // sensitivity to neighborhood income m(p)
-	double LOW_DENSITY_SENSIVITY = 0.45;   // vacancy discount strength (subtracts cost)
-	double HIGH_DENSITY_SENSIVITY  = 0.4;   // density surcharge strength (adds cost)
+	double BASELINE_COST   = 50;   // baseline cost level
+	double INCOME_SENSIVITY = 1;   // sensitivity to neighborhood income m(p)
+	double LOW_DENSITY_SENSIVITY = 0;   // vacancy discount strength (subtracts cost)
+	double HIGH_DENSITY_SENSIVITY  = 0;   // density surcharge strength (adds cost)
 
 	// smoothing to avoid jitter
 	double ALPHA = 0.3;  // cost_t = (1-ALPHA)*cost_{t-1} + ALPHA*cost_hat;  0=no update, 1=no smoothing
 
 	// neighborhood window (Moore radius); 3 ≈ 7x7
-	final int RENT_RADIUS = 2;
+	final int RENT_RADIUS = 3;
     final int SOCIAL_CLASS_RADIUS = 2;      // Moore radius for class neighborhood
 
 	// income normalization
-	double medianIncomeForRent = 500.0;
-	double incomeCapForRent    = 3.0 * medianIncomeForRent; // clamp scale
+	final static double nativeIncomeMedian = 500.0;
+	final static double migrantIncomeMedian = 200.0;
+	final static double nativeGINI = 0.35;
+	final static double migrantGINI = 0.60 ;
+	double incomeCapForRent    = 3.0 * nativeIncomeMedian; // clamp scale
 	// Optional: choose whether to include the center cell in the neighborhood stats for income
 	private static final boolean INCLUDE_CENTER = true;
 	// Optional: distance weighting (Chebyshev). If false, all neighbors weight=1.
 	private static final boolean WEIGHT_BY_DISTANCE = true;
-	private static final double RENT_FLOOR = 1.0;       // never below this
-	private static final double RENT_CEIL  = Double.POSITIVE_INFINITY; // or a number if you want a cap
+	private static final double RENT_FLOOR = 50;       // never below this
+	private static final double RENT_CEIL  = 3* nativeIncomeMedian; // or a number if you want a cap
 	
 	private enum Attr { COLOUR, TOLERANCE, CLASS}
 
@@ -160,28 +169,48 @@ public class Simulation extends Observable implements Observer, Runnable
 	// Per (race × class)
 	public final double[][] happyRateByRaceClass  = new double[RACES][CLASSES]; // [0,1]
 	public final double[][] tolMeanByRaceClass    = new double[RACES][CLASSES]; // [0,1]
-	public final double[][] affordMeanByRaceClass = new double[RACES][CLASSES]; // [0,1]
 	public final int[][]    countsByRaceClass     = new int[RACES][CLASSES];    // counts
 
 	// Collapsed by race (over classes)
 	public final double[] happyRateByRace   = new double[RACES]; // [0,1]
 	public final double[] tolMeanByRace     = new double[RACES]; // [0,1]
-	public final double[] affordMeanByRace  = new double[RACES]; // [0,1]
 	public final int[]    countsByRace      = new int[RACES];    // counts
 
 	// Collapsed by class (over races)
 	public final double[] happyRateByClass  = new double[CLASSES]; // [0,1]
 	public final double[] tolMeanByClass    = new double[CLASSES]; // [0,1]
-	public final double[] affordMeanByClass = new double[CLASSES]; // [0,1]
 	public final int[]    countsByClass     = new int[CLASSES];    // counts
 
 
 	private int affordBelowCountAll;
 	private final int[] affordBelowByRace  = new int[RACES];     // [blue, green]
 	private final int[] affordBelowByClass = new int[CLASSES];   // [C0,C1,C2]
+	
+	
+	
+	// -------- per-tick counters, split by race (0=Green, 1=Blue) and class (0,1,2) --------
+	private int[] failedMoveAttemptsByRace   = new int[2];
+	private int[] unhappyCheckedByRace       = new int[2];
+	private int[] totalChoicesByRace         = new int[2];
 
+	private int[] failedMoveAttemptsByClass  = new int[3];
+	private int[] unhappyCheckedByClass      = new int[3];
+	private int[] totalChoicesByClass        = new int[3];
+
+	// derived per-tick averages (exposed if you want to read them elsewhere)
+	public double[] avgChoicesPerUnhappyByRace  = new double[2];
+	public double[] avgChoicesPerUnhappyByClass = new double[3];
+
+	// correlations: global, by race, by class
+	public double  priceClassCorr            = 0.0;   // (you already had this name in the CSV row)
+	public double priceRaceCorr = 0.0;
 	
 	
+	
+	private double[][] clusterStatsRace  = new double[2][3];
+	private double[][] clusterStatsClass = new double[3][3];
+
+
 
 
 	List<int[]> floodFillResults;
@@ -205,6 +234,7 @@ public class Simulation extends Observable implements Observer, Runnable
 		// parameters
 		w = addedPara[0];
 		m = addedPara[1]; //divide by 10 or 100 to decrease m (rate of change of tolerance)
+		System.out.println(m);
 		g = mapPara[0];
 		fd = mapPara[1];
 		int[] agents = calculateNatAndMigAgents(influxPara[0], g, fd); //returns: target, start, green, blue
@@ -346,8 +376,8 @@ public class Simulation extends Observable implements Observer, Runnable
 				{
 					isBlue = true; //under SC, the number of greens and blues is determined at the start
 				}
-				int money = generateAgentIncome(500, 0.35, System.nanoTime());
-				int socialClass = classifyIncome(money, 500);
+				int money = generateAgentIncome(nativeIncomeMedian, nativeGINI, System.nanoTime());
+				int socialClass = classifyIncome(money, nativeIncomeMedian);
 				allAgents.add(new Agent(x, y, isBlue, newAgentTolerance, 2, money, socialClass, generateThreshold())); ////Add new param richness
 				Agent agentPara = allAgents.get(i);
 				
@@ -384,8 +414,8 @@ public class Simulation extends Observable implements Observer, Runnable
 				int y = prng.nextInt(sizeY);
 				boolean isBlue = false; // default is, agents are green
 				double newagenttolerance = generateThreshold(); // uniform
-				int money = generateAgentIncome(500, 0.35, System.nanoTime());
-				int socialClass = classifyIncome(money, 500);
+				int money = generateAgentIncome(nativeIncomeMedian, nativeGINI, System.nanoTime());
+				int socialClass = classifyIncome(money, nativeIncomeMedian);
 				allAgents.add(new Agent(x, y, isBlue, newagenttolerance, 2, money, socialClass, generateThreshold()));
 				Agent agentPara = allAgents.get(i);
 
@@ -534,7 +564,6 @@ public class Simulation extends Observable implements Observer, Runnable
 
 	    Agent currAgent = allAgents.get(agentIndex);
 	    double threshold = currAgent.getThreshold();  // percent, e.g. 95
-	    double richnessThreshold = currAgent.getRichnessThreshold();
 	    
 	    double emptyCount = surroundingInfo[2];
 
@@ -573,8 +602,8 @@ public class Simulation extends Observable implements Observer, Runnable
 
 	            // Similarity kernel over class distance:
 	            // dist=0 -> 1.0 ; dist=1 -> e^-alpha ; dist=2 -> e^(-2alpha)
-	            double sim = Math.exp(-ALPHA_CLASS * dist);
-	            double diff = 1.0 - sim;
+	            double diff = ALPHA_CLASS * dist;
+	            double sim = 1.0 - diff;
 
 	            clsSameW += sim;
 	            clsDiffW += diff;
@@ -584,27 +613,36 @@ public class Simulation extends Observable implements Observer, Runnable
 	        double sameEff = 0; 
 		    double diffEff = 0; 
 		    
+		    
+		    
 		    switch (myClass)
 		    {
 		    	case 0:
-		    		sameEff = 0.2 * sameColor + 0.8 * clsSameW;
-		    		diffEff = 0.2 * diffColor + 0.8 * clsDiffW;
+		    		sameEff = W_COLOR_POOR * sameColor + W_CLASS_POOR * clsSameW;
+		    		diffEff = W_COLOR_POOR * diffColor + W_CLASS_POOR * clsDiffW;
 		    		break;
 		    	case 1:
-		    		sameEff = 0.5 * sameColor + 0.5 * clsSameW;
-		    		diffEff = 0.5 * diffColor + 0.5 * clsDiffW;
+		    		sameEff = W_COLOR_MEDIUM * sameColor + W_CLASS_MEDIUM * clsSameW;
+		    		diffEff = W_COLOR_MEDIUM * diffColor + W_CLASS_MEDIUM * clsDiffW;
 		    		break;
 		    	case 2:
-		    		sameEff = 0.9 * sameColor + 1.0 * clsSameW;
-		    		diffEff = 0.9 * diffColor + 1.0 * clsDiffW;
+		    		sameEff = W_COLOR_RICH * sameColor + W_CLASS_RICH * clsSameW;
+		    		diffEff = W_COLOR_RICH * diffColor + W_CLASS_RICH * clsDiffW;
 		    		break;
 		    }
+		    
+		    
+		    
 	        double totEff  = sameEff + diffEff;
 
 	        // Guard: no counted neighbors
 	        double similarityPct = 0.0;
 	        if (totEff > 0.0) {
 	            similarityPct = (sameEff / totEff) * 100.0; // keep percent scale
+	            
+	         
+	           
+			    
 	        }
 
 	        // --- affordability gate (current tile) ---
@@ -619,6 +657,7 @@ public class Simulation extends Observable implements Observer, Runnable
 	        } else if (similarityPct >= threshold) {
 	            amHappy = 1; // socially satisfied and affordable
 	        } else {
+	        	
 	            amHappy = 0; // socially unsatisfied
 	        }
 	    }
@@ -638,7 +677,7 @@ public class Simulation extends Observable implements Observer, Runnable
 	 */
 	public void updatePreferences(int agentid, int[] mooreNBHofAgent)
 	{
-	    df2.setRoundingMode(RoundingMode.HALF_EVEN);
+	    
 	    Agent currAgent = allAgents.get(agentid);
 	    int happy = currAgent.isHappy;
 	    boolean isAgentBlue = currAgent.isBlue;
@@ -646,9 +685,7 @@ public class Simulation extends Observable implements Observer, Runnable
 	    double prefMin = 5.00;   // meaning always one same must be present
 	    double prefMax = 93.00;  // meaning always one different is tolerated
 	    double oldPref = Double.valueOf(df2.format(currAgent.getThreshold())); // e.g., 75.00
-	    double oldRichPref = Double.valueOf(df2.format(currAgent.getRichnessThreshold())); //Richness preference threshold before any operation for updating
 	    double newPref = -44;
-	    double newRichPref = -44; //Richness preference threshold updated
 
 	    double prefDecrement = -m;
 	    double prefIncrement =  m;
@@ -679,8 +716,8 @@ public class Simulation extends Observable implements Observer, Runnable
 
 	        // Similarity kernel over class distance:
 	        // dist=0 -> 1.0 ; dist=1 -> e^-alpha ; dist=2 -> e^(-2alpha)
-	        double sim  = Math.exp(-ALPHA_CLASS * dist);
-	        double diffW = 1.0 - sim;
+	        double diffW = ALPHA_CLASS * dist;
+            double sim = 1.0 - diffW;
 
 	        clsSameW += sim;
 	        clsDiffW += diffW;
@@ -694,20 +731,21 @@ public class Simulation extends Observable implements Observer, Runnable
 	    switch (myClass)
 	    {
 	    	case 0:
-	    		sameEff = 0.2 * same + 0.8 * clsSameW;
-	    		diffEff = 0.2 * diff + 0.8 * clsDiffW;
+	    		sameEff = W_COLOR_POOR * same + W_CLASS_POOR * clsSameW;
+	    		diffEff = W_COLOR_POOR * diff + W_CLASS_POOR * clsDiffW;
 	    		break;
 	    	case 1:
-	    		sameEff = 0.5 * same + 0.5 * clsSameW;
-	    		diffEff = 0.5 * diff + 0.5 * clsDiffW;
+	    		sameEff = W_COLOR_MEDIUM * same + W_CLASS_MEDIUM * clsSameW;
+	    		diffEff = W_COLOR_MEDIUM * diff + W_CLASS_MEDIUM * clsDiffW;
 	    		break;
 	    	case 2:
-	    		sameEff = 0.9 * same + 1.0 * clsSameW;
-	    		diffEff = 0.9 * diff + 1.0 * clsDiffW;
+	    		sameEff = W_COLOR_RICH * same + W_CLASS_RICH * clsSameW;
+	    		diffEff = W_COLOR_RICH * diff + W_CLASS_RICH * clsDiffW;
 	    		break;
 	    }
-
-	    double totEff = sameEff + diffEff;
+	    
+	    
+        double totEff  = sameEff + diffEff;
 
 	    if (totEff == 0.0) // isolated (or nobody counted) → keep preference unchanged
 	    {
@@ -715,9 +753,9 @@ public class Simulation extends Observable implements Observer, Runnable
 	    }
 	    else
 	    {
-	        if (diffEff > 0.0) // some “difference” signal exists (from color and/or class distance)
+	        if (diffEff > 0.5) // some “difference” signal exists (from color and/or class distance)
 	        {
-	        	double delta;
+
 	            if (happy == 1) {
 	            	
 	                newPref = oldPref + prefDecrement; // happy among some different → relax a bit
@@ -811,7 +849,7 @@ public class Simulation extends Observable implements Observer, Runnable
 	        }
 	    }
 	    // Fallback to your baseline if no neighbors with agents
-	    return (wsum > 0.0) ? (sum / wsum) : medianIncomeForRent;
+	    return (wsum > 0.0) ? (sum / wsum) : nativeIncomeMedian;
 	}
 
 	private double localOccupancy(int cx, int cy, int radius) {
@@ -843,12 +881,12 @@ public class Simulation extends Observable implements Observer, Runnable
 	            Tile t = world.getTile(x, y);
 
 	            // --- Neighborhood stats ---
-	            double m   = localMeanIncome(x, y, RENT_RADIUS); // average income (weighted if enabled)
+	            double i   = localMeanIncome(x, y, RENT_RADIUS); // average income (weighted if enabled)
 	            double occ = localOccupancy(x, y, RENT_RADIUS);  // 0..1
 	            double vac = 1.0 - occ;
 
 	            // --- Raw cost model (yours) ---
-	            double costHat = BASELINE_COST + INCOME_SENSIVITY * m - LOW_DENSITY_SENSIVITY * vac + HIGH_DENSITY_SENSIVITY * occ;
+	            double costHat = BASELINE_COST + INCOME_SENSIVITY * i - LOW_DENSITY_SENSIVITY * vac + HIGH_DENSITY_SENSIVITY * occ;
 
 	            // --- Temporal smoothing ---
 	            double prev = t.getRent();
@@ -986,7 +1024,15 @@ public class Simulation extends Observable implements Observer, Runnable
 		int[] surroundingInfo = new int[3]; // 0=blue,// 1=green,// 2=empty
 		double total;
 		List<int[]> emptyTileInfo = new ArrayList<int[]>(); // x, y, same, different, utility
+		int eligibleChoicesThisAgent = 0;
+		
+		// NEW: identify race/class for split metrics
+		int raceIdx  = curA.isBlue ? 1 : 0;          // 0=Green, 1=Blue
+		int classIdx = curA.getSocialClass();        // 0..2
 
+		// NEW: count this unhappy agent in the split counters
+		unhappyCheckedByRace[raceIdx]++;
+		unhappyCheckedByClass[classIdx]++;
 		// here we loop through the list of empty tiles. for each empty tile, we
 		// get its mooreNBH information and store that in our emptyTileInfo list.
 		if (consideredTiles.length <= emptyTiles.size())
@@ -1006,7 +1052,7 @@ public class Simulation extends Observable implements Observer, Runnable
 			    double affordability = affordabilityScore(tileCost, income);
 
 			    // skip tile if too unaffordable (score below threshold)
-			    if (affordability < AFFORDABILITY ) {                   // you can tweak this cutoff
+			    if (affordability < AFFORDABILITY ) {                   
 			        allInfo[2] = 0; allInfo[3] = 0; allInfo[4] = 0;
 			        emptyTileInfo.add(allInfo);
 			        continue;
@@ -1027,36 +1073,47 @@ public class Simulation extends Observable implements Observer, Runnable
 
 			    // === 3) Class similarity counts ======================================
 			    int myClass = curA.getSocialClass(); // 0,1,2
-			    int clsSame = 0, clsTot = 0;
-			    int[][] nbh = getNeighbourPositionsMoore(cand.getPosition(), 2);
-			    for (int k = 0; k < nbh.length; k++) {
-			        Tile nt = world.getTile(nbh[k][0], nbh[k][1]);
-			        if (nt.hasAgent()) {
-			            clsTot++;
-			            if (nt.getagentSocialClass() == myClass) clsSame++;
-			        }
+			    double clsSameW = 0.0;  // weighted "same" mass
+			    double clsDiffW = 0.0;  // weighted "different" mass
+
+			    int[][] nbh = getNeighbourPositionsMoore(curA.getPosition(), SOCIAL_CLASS_RADIUS);
+			    for (int i1 = 0; i1 < nbh.length; i1++) {
+			        Tile nt = world.getTile(nbh[i1][0], nbh[i1][1]);
+			        if (!nt.hasAgent()) continue;
+
+			        int nc = nt.getagentSocialClass();     // 0..2
+			        int dist = Math.abs(nc - myClass);     // 0,1,2
+
+			        // Similarity kernel over class distance:
+			        // dist=0 -> 1.0 ; dist=1 -> e^-alpha ; dist=2 -> e^(-2alpha)
+			        double diff = ALPHA_CLASS * dist;
+		            double sim = 1.0 - diff;
+
+			        clsSameW += sim;
+			        clsDiffW += diff;
 			    }
-			    // =====================================================================
 
 			    // === 4) Blend race + class into similarity ===========================
 			    double sameEff = 0; 
 			    double diffEff = 0; 
 			    
+			    
 			    switch (myClass)
 			    {
 			    	case 0:
-			    		sameEff = 0.2 * sameColor + 0.8 * clsSame;
-			    		diffEff = 0.2 * diffColor + 0.8 * (clsTot - clsSame);
+			    		sameEff = W_COLOR_POOR * sameColor + W_CLASS_POOR * clsSameW;
+			    		diffEff = W_COLOR_POOR * diffColor + W_CLASS_POOR * clsDiffW;
 			    		break;
 			    	case 1:
-			    		sameEff = 0.5 * sameColor + 0.5 * clsSame;
-			    		diffEff = 0.5 * diffColor + 0.5 * (clsTot - clsSame);
+			    		sameEff = W_COLOR_MEDIUM * sameColor + W_CLASS_MEDIUM * clsSameW;
+			    		diffEff = W_COLOR_MEDIUM * diffColor + W_CLASS_MEDIUM * clsDiffW;
 			    		break;
 			    	case 2:
-			    		sameEff = 0.9 * sameColor + 1.0 * clsSame;
-			    		diffEff = 0.9 * diffColor + 1.0 * (clsTot - clsSame);
+			    		sameEff = W_COLOR_RICH * sameColor + W_CLASS_RICH * clsSameW;
+			    		diffEff = W_COLOR_RICH * diffColor + W_CLASS_RICH * clsDiffW;
 			    		break;
 			    }
+			    
 			    double totEff  = sameEff + diffEff;
 
 			    allInfo[2] = (int)Math.round(sameEff);
@@ -1068,6 +1125,11 @@ public class Simulation extends Observable implements Observer, Runnable
 			    double similarity = sameEff / totEff;
 			    double threshold  = curA.getThreshold() / 100.0;
 			    allInfo[4] = (similarity >= threshold) ? 1 : 0;
+			    
+			    if (allInfo[4] == 1) {
+			        eligibleChoicesThisAgent++;
+			    }
+			    //if(myClass == 2 &&  allInfo[4] == 1) {System.out.println(allInfo[4] + "   " + threshold + "      " + similarity);}
 			    // =====================================================================
 
 			    emptyTileInfo.add(allInfo);
@@ -1128,6 +1190,9 @@ public class Simulation extends Observable implements Observer, Runnable
 				narrowedCandidates.add(position);
 			}
 		}
+		// NEW: split aggregates
+		totalChoicesByRace[raceIdx]  += eligibleChoicesThisAgent;
+		totalChoicesByClass[classIdx] += eligibleChoicesThisAgent;
 
 		// now we have a list of narrowed-down candidates. if the list is larger
 		// than 1, we have multiple tiles of equal value.
@@ -1153,6 +1218,8 @@ public class Simulation extends Observable implements Observer, Runnable
 			{
 				betterPlace[0] = -44;
 				betterPlace[1] = -44;
+				failedMoveAttemptsByRace[raceIdx]++;
+				failedMoveAttemptsByClass[classIdx]++;
 			}
 		}
 		return betterPlace;
@@ -1655,8 +1722,8 @@ public class Simulation extends Observable implements Observer, Runnable
 		for (int i = 0; i < influxPositions.size(); i++)
 		{
 			
-			money = generateAgentIncome(500, 0.35, System.nanoTime());
-			int socialClass = classifyIncome(money, 500);
+			money = generateAgentIncome(migrantIncomeMedian, migrantGINI, System.nanoTime());
+			int socialClass = classifyIncome(money, nativeIncomeMedian);
 			//because we have different type of influxes, they result in a different kind of blue population:
 			
 			newAgentTolerance = generateThreshold(); //1 uniform
@@ -1956,6 +2023,80 @@ public class Simulation extends Observable implements Observer, Runnable
 	
 	
 	// --- small utilities ---
+	
+	// Função genérica que devolve vetor [count, mean, var] para UM grupo específico
+	private double[] computeClusterStatsForGroup(int groupLabel, java.util.function.Function<Tile,Integer> getLabel, int radius) {
+	    boolean[][] visited = new boolean[sizeX][sizeY];
+	    java.util.ArrayList<Integer> sizes = new java.util.ArrayList<>();
+
+	    for (int x = 0; x < sizeX; x++) {
+	        for (int y = 0; y < sizeY; y++) {
+	            Tile t = world.getTile(x, y);
+	            if (!t.hasAgent() || visited[x][y]) continue;
+	            int label = getLabel.apply(t);
+	            if (label != groupLabel) continue;
+
+	            // BFS
+	            java.util.ArrayDeque<int[]> q = new java.util.ArrayDeque<>();
+	            q.add(new int[]{x, y});
+	            visited[x][y] = true;
+	            int clusterSize = 0;
+
+	            while (!q.isEmpty()) {
+	                int[] pos = q.poll();
+	                int cx = pos[0], cy = pos[1];
+	                clusterSize++;
+
+	                int[][] neigh = getNeighbourPositionsMoore(new int[]{cx, cy}, radius);
+	                for (int[] nb : neigh) {
+	                    int nx = nb[0], ny = nb[1];
+	                    if (visited[nx][ny]) continue;
+	                    Tile n = world.getTile(nx, ny);
+	                    if (!n.hasAgent()) continue;
+	                    if (getLabel.apply(n) == groupLabel) {
+	                        visited[nx][ny] = true;
+	                        q.add(new int[]{nx, ny});
+	                    }
+	                }
+	            }
+	            if (clusterSize > 0) sizes.add(clusterSize);
+	        }
+	    }
+
+	    // estatísticas simples
+	    double count = sizes.size();
+	    if (count == 0) return new double[]{0, 0, 0};
+
+	    double sum = 0;
+	    for (int s : sizes) sum += s;
+	    double mean = sum / count;
+
+	    double varSum = 0;
+	    for (int s : sizes) varSum += Math.pow(s - mean, 2);
+	    double var = varSum / count;
+
+	    return new double[]{count, mean, var};
+	}
+
+
+	// Função que atualiza todos os grupos
+	private void computeClustersByGroup() {
+	    int radius = 1; // ou 2, conforme o teu modelo
+
+	    // --- RAÇA ---
+	    for (int g = 0; g < 2; g++) {
+	        final int label = g;
+	        clusterStatsRace[g] = computeClusterStatsForGroup(label, t -> (t.isAgentBlue() ? 1 : 0), radius);
+	    }
+
+	    // --- CLASSE SOCIAL ---
+	    for (int g = 0; g < 3; g++) {
+	        final int label = g;
+	        clusterStatsClass[g] = computeClusterStatsForGroup(label, t -> t.getagentSocialClass(), radius);
+	    }
+	}
+	
+	
 	private int wrap(int v, int max) { return ((v % max) + max) % max; }
 	private double clamp01(double v) { return Math.max(0.0, Math.min(1.0, v)); }
 	// === Public one-liners you can call anywhere ===
@@ -2163,13 +2304,60 @@ public class Simulation extends Observable implements Observer, Runnable
 	    }
 	    return moransI(x, occ);
 	}
+	
+	// Pearson corr: RENT (X) vs RACE (Y: 0=Green, 1=Blue), overall
+	private double pearsonPriceRace() {
+	    double sumX=0, sumY=0, sumXX=0, sumYY=0, sumXY=0;
+	    int n = 0;
+	    for (int x = 0; x < sizeX; x++) {
+	        for (int y = 0; y < sizeY; y++) {
+	            Tile t = world.getTile(x, y);
+	            if (!t.hasAgent()) continue;
+	            double X = t.getRent();
+	            double Y = t.isAgentBlue() ? 1.0 : 0.0;
+	            n++;
+	            sumX += X; sumY += Y;
+	            sumXX += X*X; sumYY += Y*Y; sumXY += X*Y;
+	        }
+	    }
+	    if (n < 2) return 0.0;
+	    double num = n*sumXY - sumX*sumY;
+	    double den = Math.sqrt((n*sumXX - sumX*sumX) * (n*sumYY - sumY*sumY));
+	    if (den == 0.0) return 0.0;
+	    return num / den;
+	}
+	
+	// Correlação de Pearson entre preço (rent) e classe (0,1,2) nas células ocupadas
+	private double pearsonPriceClass() {
+	    double sumX = 0, sumY = 0, sumXX = 0, sumYY = 0, sumXY = 0;
+	    int n = 0;
+
+	    for (int x = 0; x < sizeX; x++) for (int y = 0; y < sizeY; y++) {
+	        Tile t = world.getTile(x, y);
+	        if (!t.hasAgent()) continue;
+	        double X = t.getRent();
+	        double Y = t.getagentSocialClass(); // 0,1,2
+	        n++;
+	        sumX += X; sumY += Y;
+	        sumXX += X * X; sumYY += Y * Y; sumXY += X * Y;
+	    }
+	    if (n < 2) return 0.0;
+	    double num = n * sumXY - sumX * sumY;
+	    double den = Math.sqrt((n * sumXX - sumX * sumX) * (n * sumYY - sumY * sumY));
+	    if (den == 0) return 0.0;
+	    return num / den;
+	}
+
+
+
+
 
 
 	private void clearAccumulators() {
 	    // zero all private accumulators and public outputs
 	    for (int r = 0; r < RACES; r++) {
 	        _countsByRace[r] = 0; _happyByRace[r] = 0; _tolSumByRace[r] = 0.0; _affordSumByRace[r] = 0.0;
-	        countsByRace[r] = 0; happyRateByRace[r] = 0.0; tolMeanByRace[r] = 0.0; affordMeanByRace[r] = 0.0;
+	        countsByRace[r] = 0; happyRateByRace[r] = 0.0; tolMeanByRace[r] = 0.0; 
 	        for (int c = 0; c < CLASSES; c++) {
 	            _countsByRaceClass[r][c] = 0;
 	            _happyCountsByRaceClass[r][c] = 0;
@@ -2179,12 +2367,11 @@ public class Simulation extends Observable implements Observer, Runnable
 	            countsByRaceClass[r][c] = 0;
 	            happyRateByRaceClass[r][c] = 0.0;
 	            tolMeanByRaceClass[r][c] = 0.0;
-	            affordMeanByRaceClass[r][c] = 0.0;
 	        }
 	    }
 	    for (int c = 0; c < CLASSES; c++) {
 	        _countsByClass[c] = 0; _happyByClass[c] = 0; _tolSumByClass[c] = 0.0; _affordSumByClass[c] = 0.0;
-	        countsByClass[c] = 0; happyRateByClass[c] = 0.0; tolMeanByClass[c] = 0.0; affordMeanByClass[c] = 0.0;
+	        countsByClass[c] = 0; happyRateByClass[c] = 0.0; tolMeanByClass[c] = 0.0; 
 	    }
 	    affordBelowCountAll = 0;
 	    for (int r = 0; r < RACES; r++) affordBelowByRace[r] = 0;
@@ -2380,11 +2567,9 @@ public class Simulation extends Observable implements Observer, Runnable
 	                if (n > 0) {
 	                    happyRateByRaceClass[r][c]  = clamp01((double) _happyCountsByRaceClass[r][c] / n);
 	                    tolMeanByRaceClass[r][c]    = (_tolSumByRaceClass[r][c] / n);
-	                    affordMeanByRaceClass[r][c] = clamp01(_affordSumByRaceClass[r][c] / n);
 	                } else {
 	                    happyRateByRaceClass[r][c] = 0.0;
 	                    tolMeanByRaceClass[r][c]   = 0.0;
-	                    affordMeanByRaceClass[r][c]= 0.0;
 	                }
 	            }
 	        }
@@ -2396,11 +2581,9 @@ public class Simulation extends Observable implements Observer, Runnable
 	            if (n > 0) {
 	                happyRateByRace[r] = clamp01((double) _happyByRace[r] / n);
 	                tolMeanByRace[r]   = (_tolSumByRace[r] / n);
-	                affordMeanByRace[r]= clamp01(_affordSumByRace[r] / n);
 	            } else {
 	                happyRateByRace[r] = 0.0;
 	                tolMeanByRace[r]   = 0.0;
-	                affordMeanByRace[r]= 0.0;
 	            }
 	        }
 
@@ -2412,11 +2595,9 @@ public class Simulation extends Observable implements Observer, Runnable
 	            if (n > 0) {
 	                happyRateByClass[c]  = clamp01((double) _happyByClass[c] / n);
 	                tolMeanByClass[c]    = (_tolSumByClass[c] / n);
-	                affordMeanByClass[c] = clamp01(_affordSumByClass[c] / n);
 	            } else {
 	                happyRateByClass[c]  = 0.0;
 	                tolMeanByClass[c]    = 0.0;
-	                affordMeanByClass[c] = 0.0;
 	            }
 	        }
 	    }
@@ -2430,6 +2611,24 @@ public class Simulation extends Observable implements Observer, Runnable
 	public void collectData() {
 	    // 1) Populate all globals (legacy + new per-race/class)
 	    collectPopulationData();
+	 // === NOVAS MÉTRICAS DE CLUSTERS ===
+	    computeClustersByGroup();
+	    priceClassCorr = pearsonPriceClass();
+	    priceRaceCorr = pearsonPriceRace();
+	    
+	    
+	 // === Split averages: AvgChoicesPerUnhappy by race/class ===
+	    for (int r = 0; r < 2; r++) {
+	        avgChoicesPerUnhappyByRace[r] = (unhappyCheckedByRace[r] > 0)
+	                ? (double) totalChoicesByRace[r] / (double) unhappyCheckedByRace[r]
+	                : 0.0;
+	    }
+	    for (int c = 0; c < 3; c++) {
+	        avgChoicesPerUnhappyByClass[c] = (unhappyCheckedByClass[c] > 0)
+	                ? (double) totalChoicesByClass[c] / (double) unhappyCheckedByClass[c]
+	                : 0.0;
+	    }
+
 
 	    // 2) Tolerance descriptive stats (legacy)
 	    List<DescriptiveStatistics> allTdata = collectMoreTolData();
@@ -2441,6 +2640,9 @@ public class Simulation extends Observable implements Observer, Runnable
 	    double morans   = moransColour();
 	    double moranTol = moransTolerance();
 	    double moranSocialClass = moransClass();
+	    
+	    String priceClassCorrStr = String.valueOf(priceClassCorr);
+	    String priceRaceCorrStr  = String.valueOf(priceRaceCorr);
 	    mC = morans;
 	    mT = moranTol;
 
@@ -2490,8 +2692,7 @@ public class Simulation extends Observable implements Observer, Runnable
 	    String r1_H = String.valueOf(happyRateByRace[1]);
 	    String r0_T = String.valueOf(tolMeanByRace[0]);
 	    String r1_T = String.valueOf(tolMeanByRace[1]);
-	    String r0_A = String.valueOf(affordMeanByRace[0]);
-	    String r1_A = String.valueOf(affordMeanByRace[1]);
+	    
 
 	    // By class (0,1,2)
 	    String c0_count = String.valueOf(countsByClass[0]);
@@ -2503,10 +2704,101 @@ public class Simulation extends Observable implements Observer, Runnable
 	    String c0_T = String.valueOf(tolMeanByClass[0]);
 	    String c1_T = String.valueOf(tolMeanByClass[1]);
 	    String c2_T = String.valueOf(tolMeanByClass[2]);
-	    String c0_A = String.valueOf(affordMeanByClass[0]);
-	    String c1_A = String.valueOf(affordMeanByClass[1]);
-	    String c2_A = String.valueOf(affordMeanByClass[2]);
 
+	    
+		 // --- Converter em Strings (igual a mtolstats) ---
+	
+		 // RAÇA: 0=verde, 1=azul
+		 String raceGreenN    = String.valueOf(clusterStatsRace[0][0]);
+		 String raceGreenMean = String.valueOf(clusterStatsRace[0][1]);
+		 String raceGreenVar  = String.valueOf(clusterStatsRace[0][2]);
+	
+		 String raceBlueN     = String.valueOf(clusterStatsRace[1][0]);
+		 String raceBlueMean  = String.valueOf(clusterStatsRace[1][1]);
+		 String raceBlueVar   = String.valueOf(clusterStatsRace[1][2]);
+	
+		 // CLASSE: 0=pobre, 1=média, 2=rica
+		 String classPoorN    = String.valueOf(clusterStatsClass[0][0]);
+		 String classPoorMean = String.valueOf(clusterStatsClass[0][1]);
+		 String classPoorVar  = String.valueOf(clusterStatsClass[0][2]);
+	
+		 String classMidN     = String.valueOf(clusterStatsClass[1][0]);
+		 String classMidMean  = String.valueOf(clusterStatsClass[1][1]);
+		 String classMidVar   = String.valueOf(clusterStatsClass[1][2]);
+	
+		 String classRichN    = String.valueOf(clusterStatsClass[2][0]);
+		 String classRichMean = String.valueOf(clusterStatsClass[2][1]);
+		 String classRichVar  = String.valueOf(clusterStatsClass[2][2]);
+		 
+		 
+		// --- Split metrics to strings (race: 0=Green,1=Blue) ---
+		 String failGreen = String.valueOf(failedMoveAttemptsByRace[0]);
+		 String failBlue  = String.valueOf(failedMoveAttemptsByRace[1]);
+		 String avgChGreen = String.valueOf(avgChoicesPerUnhappyByRace[0]);
+		 String avgChBlue  = String.valueOf(avgChoicesPerUnhappyByRace[1]);
+	
+
+		 // --- Split metrics to strings (class: 0=Poor,1=Mid,2=Rich) ---
+		 String failC0 = String.valueOf(failedMoveAttemptsByClass[0]);
+		 String failC1 = String.valueOf(failedMoveAttemptsByClass[1]);
+		 String failC2 = String.valueOf(failedMoveAttemptsByClass[2]);
+
+		 String avgChC0 = String.valueOf(avgChoicesPerUnhappyByClass[0]);
+		 String avgChC1 = String.valueOf(avgChoicesPerUnhappyByClass[1]);
+		 String avgChC2 = String.valueOf(avgChoicesPerUnhappyByClass[2]);
+
+	    
+
+		// -- write CSV header once (must match theString order exactly) --
+		 if (!csvHeaderWritten) {
+		     String[] header = new String[] {
+		         // --- Legacy 25 (your current order) ---
+		         "MoranI_Color", "MoranI_Tolerance", "MoranI_Class",
+		         "TotalMoves", "GlobalHappiness", "NumAgents", "ChangedMind",
+		         "Tol_N", "Tol_Mean", "Tol_Var", "Tol_StdDev", "Tol_Kurtosis", "Tol_Skewness",
+		         "NTol_N", "NTol_Mean", "NTol_Var", "NTol_StdDev", "NTol_Kurtosis", "NTol_Skewness",
+		         "MTol_N", "MTol_Mean", "MTol_Var", "MTol_StdDev", "MTol_Kurtosis", "MTol_Skewness",
+
+		         // --- By race (0=Blue, 1=Green) ---
+		         "Blue_Count", "Green_Count",
+		         "Blue_Happy", "Green_Happy",
+		         "Blue_Tolerance", "Green_Tolerance",
+
+
+		         // --- By class (0,1,2) ---
+		         "Class0_Count", "Class1_Count", "Class2_Count",
+		         "Class0_Happy", "Class1_Happy", "Class2_Happy",
+		         "Class0_Tolerance", "Class1_Tolerance", "Class2_Tolerance",
+
+
+		         // --- Affordability thresholds (shares) ---
+		         "AffBelow_All", "AffBelow_Blue", "AffBelow_Green",
+		         "AffBelow_Class0", "AffBelow_Class1", "AffBelow_Class2",
+
+		         // --- Clusters by Race (index 0=Green, 1=Blue in your arrays) ---
+		         "Cluster_Green_N", "Cluster_Green_Mean", "Cluster_Green_Var",
+		         "Cluster_Blue_N",  "Cluster_Blue_Mean",  "Cluster_Blue_Var",
+
+		         // --- Clusters by Class (0=Poor,1=Mid,2=Rich) ---
+		         "Cluster_Class0_Poor_N", "Cluster_Class0_Poor_Mean", "Cluster_Class0_Poor_Var",
+		         "Cluster_Class1_Mid_N",  "Cluster_Class1_Mid_Mean",  "Cluster_Class1_Mid_Var",
+		         "Cluster_Class2_Rich_N", "Cluster_Class2_Rich_Mean", "Cluster_Class2_Rich_Var",
+
+		         // --- Other metrics ---
+		      // --- Split "FailedMoveAttempts" / "AvgChoicesPerUnhappy" / "PriceClassCorr" (by race) ---
+		         "FailedMoveAttempts_Green", "FailedMoveAttempts_Blue",
+		         "AvgChoicesPerUnhappy_Green", "AvgChoicesPerUnhappy_Blue",
+		        
+
+		         // --- Split by class (0=Poor,1=Mid,2=Rich) ---
+		         "FailedMoveAttempts_Class0_Poor", "FailedMoveAttempts_Class1_Mid", "FailedMoveAttempts_Class2_Rich",
+		         "AvgChoicesPerUnhappy_Class0_Poor", "AvgChoicesPerUnhappy_Class1_Mid", "AvgChoicesPerUnhappy_Class2_Rich",
+		        
+		         "PriceClassCorr", "PriceRaceCorr",
+		     };
+		     writer.writeNext(header);
+		     csvHeaderWritten = true;
+		 }
 
 	    // 7) Build the full output row:
 	   
@@ -2519,15 +2811,36 @@ public class Simulation extends Observable implements Observer, Runnable
 	        mtolN, mtolmean, mtolvar, mtolstdDev, mtolKurt, mtolSkew,
 
 	        // --- By race (Blue, Green) ---
-	        r0_count, r1_count, r0_H, r1_H, r0_T, r1_T, r0_A, r1_A,
+	        r0_count, r1_count, r0_H, r1_H, r0_T, r1_T,
 
 	        // --- By class (0,1,2) ---
 	        c0_count, c1_count, c2_count,
 	        c0_H, c1_H, c2_H,
 	        c0_T, c1_T, c2_T,
-	        c0_A, c1_A, c2_A,
+
 	        
-	        affBelowAll, affBelowBlue, affBelowGreen, affBelowC0, affBelowC1, affBelowC2
+	        affBelowAll, affBelowBlue, affBelowGreen, affBelowC0, affBelowC1, affBelowC2,
+	        
+	     // ======= CLUSTERS POR RAÇA =======
+	        raceGreenN, raceGreenMean, raceGreenVar,
+	        raceBlueN,  raceBlueMean,  raceBlueVar,
+
+	        // ======= CLUSTERS POR CLASSE SOCIAL =======
+	        classPoorN, classPoorMean, classPoorVar,
+	        classMidN,  classMidMean,  classMidVar,
+	        classRichN, classRichMean, classRichVar,
+
+	
+	     
+	        failGreen, failBlue,
+	        avgChGreen, avgChBlue,
+	  
+	        failC0, failC1, failC2,
+	        avgChC0, avgChC1, avgChC2,
+
+
+	        priceClassCorrStr,               // overall class–price
+	        priceRaceCorrStr,                 // overall race–price
 
 	    };
 	    // 8) Write row
@@ -2546,6 +2859,14 @@ public class Simulation extends Observable implements Observer, Runnable
 			changedMind = 0;
 			globalMoveCounter = 0.0;
 			prefcMcounter = 0;
+			// NEW: reset split counters
+			java.util.Arrays.fill(failedMoveAttemptsByRace,  0);
+			java.util.Arrays.fill(unhappyCheckedByRace,      0);
+			java.util.Arrays.fill(totalChoicesByRace,        0);
+
+			java.util.Arrays.fill(failedMoveAttemptsByClass, 0);
+			java.util.Arrays.fill(unhappyCheckedByClass,     0);
+			java.util.Arrays.fill(totalChoicesByClass,       0);
 
 			if (influx == 1 && fluxcounter < NUM_FLUXES) // after x ticks, influx
 			{
@@ -2641,7 +2962,7 @@ public class Simulation extends Observable implements Observer, Runnable
 			influxString = "OFF";
 		}
 
-		String longNameRan = "gr" + g + "fd" + fd + influxString + "w" + w + "m" + df4.format(m);
+		String longNameRan = "gr" + g + "fd" + fd + influxString + "w" + w + "m" + df4.format(m) + "ngini" + nativeGINI + "mgini" + migrantGINI;
 		csvname = longNameRan;
 		String path = "output/";
 		String csvName = path + longNameRan + ".csv";
@@ -2663,6 +2984,7 @@ public class Simulation extends Observable implements Observer, Runnable
 
 			// Files.createFile(pathToFile);
 			writer = new CSVWriter(new FileWriter(csvName, true), ','); // once all files and directories are dealt with, we create the filewriter
+			csvHeaderWritten = false;
 		}
 		catch (IOException e)
 		{
