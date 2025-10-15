@@ -132,9 +132,9 @@ public class Simulation extends Observable implements Observer, Runnable
 
 	// income normalization
 	final static double nativeIncomeMedian = 500.0;
-	final static double migrantIncomeMedian = 200.0;
+	final static double migrantIncomeMedian = 500.0;
 	final static double nativeGINI = 0.35;
-	final static double migrantGINI = 0.60 ;
+	final static double migrantGINI = 0.35 ;
 	double incomeCapForRent    = 3.0 * nativeIncomeMedian; // clamp scale
 	// Optional: choose whether to include the center cell in the neighborhood stats for income
 	private static final boolean INCLUDE_CENTER = true;
@@ -2962,7 +2962,7 @@ public class Simulation extends Observable implements Observer, Runnable
 			influxString = "OFF";
 		}
 		Random r  = new Random();
-		String longNameRan = "gr" + g + "fd" + fd + influxString + "w" + w + "m" + df4.format(m) + "ngini" + nativeGINI + "mgini" + migrantGINI + r.nextInt();
+		String longNameRan = "gr" + g + "fd" + fd + influxString + "w" + w + "m" + df4.format(m) + "ngini" + nativeGINI + "mgini" + migrantGINI + "c" +r.nextInt();
 		csvname = longNameRan;
 		String path = "output/";
 		String csvName = path + longNameRan + ".csv";
