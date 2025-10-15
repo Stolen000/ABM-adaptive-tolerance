@@ -3,6 +3,7 @@ package simulation;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.Observable;
 import java.util.Observer;
 import java.util.Random;
@@ -69,73 +70,66 @@ public class SimController extends Observable implements Runnable, Observer
 		modi = new int[] { START_DENSITY, INFLUX, INFLUX_PC, THRESHOLD_RULE };
 	}
 
-	public static void runRule(int rule, int sims) throws IOException
+	public static void runRule(int rule) throws IOException
 	{
+		
+		int[] tdensityoptions = {80, 90};
+		int[] shareoptions = {75, 50};
+		int[] infcoptions = {0, 1, 4, 15}; // 0 means influx off
 
-		for (int i = 0; i < sims; i++)
-		{
-			if (rule == 0) //manual setup, for testing
-			{
-				simPara = new int[] { sims, 20000 }; //numSim, numTicks 
-				mapPara = new int[] { 50, 70 }; //green ratio, final-density
-				influxPara = new int[] { 1, 1 }; //influxONOFF, influxcount
-				addedPara = new int[] { 50, 1 }; // w, m 
-			}
-			else if (rule == 1) //random effects setup. randomise parameters.
-			{
-				int numrep = sims; //number of times a new setup gets created
-				int numtick = 20000;
-				int influx = -2;
-				int influxcount = -2;
-				int[] tdensityoptions = {80, 90};
-				int[] shareoptions = {75, 50};
-				
-				int td = tdensityoptions[randInt(0, 1)]; //starting density or rather, number of greens
-				int sd = shareoptions[randInt(0, 1)]; //target density
-				int m = 1; // 10Oct16: changed to max of 40% rather than 99% for theoretical reasons
-				int[] infcoptions = {1, 4, 15};
-				int isInfluxOn = randInt(0, 3);
-				int w = 50;
+		int numrep = 64; 
+		int numtick = 20000;
+		int m = 1;
+		int w = 50;
 
-				if (isInfluxOn != 0) // influx ON should be more likely. 4 influx possibilities and 1 non-possibility.
-				{
-					influx = 1; //ON
-					influxcount = infcoptions[randInt(0, 2)]; // <- always pick 0th elements as array gets shuffled beforehand
-				}
-				else
-				{
-					influx = 0; //OFF
-					influxcount = 0; // <- set to 0
-				}
+		int runCount = 0;
 
-				simPara = new int[] { numrep, numtick }; //numSim, numTicks
-				mapPara = new int[] { sd, td }; //starting-density, final-density
-				influxPara = new int[] { influx, influxcount }; //influxONOFF, influxcount
-				addedPara = new int[] { w, m }; // w, m. (considered tiles, tolerance de/increment
-			}
-			else
-			{
-				System.out.println("<<runRule>> runRule not 1 or 2. It's " + rule);
-			}
-			tick = i;
-			long startTime = System.currentTimeMillis();
-			SimController controller = new SimController(simPara, mapPara, influxPara, addedPara);
-			event.addObserver(controller);
+		for (int td : tdensityoptions) {
+		    for (int sd : shareoptions) {
+		        for (int infc : infcoptions) {
+		            // Repeat each combination 4 times
+		            for (int rep = 0; rep < 4; rep++) {
+		                int influx, influxcount;
 
-			String[] inf = { "OFF", "ON" };
-			Date now = new Date();
-			String startstr = i + 1 + "/" + simPara[0] + " sim started at " + now + ". Params: " + "GR" + mapPara[0] + "/FD" + FINAL_DENSITY + "/I-" + inf[INFLUX] + "/" + influxPara[1] + "/M" + M
-					+ "/W" + W;
-			System.out.println(startstr);
+		                if (infc == 0) {
+		                    influx = 0;
+		                    influxcount = 0;
+		                } else {
+		                    influx = 1;
+		                    influxcount = infc;
+		                }
 
-			controller.run();
+		                simPara = new int[] { numrep, numtick }; // numSim, numTicks
+		                mapPara = new int[] { sd, td }; // starting-density, final-density
+		                influxPara = new int[] { influx, influxcount }; // influxONOFF, influxcount
+		                addedPara = new int[] { w, m }; // w, m
 
-			long estimatedTime = System.currentTimeMillis() - startTime;
-			long minutes = (estimatedTime / 1000) / 60;
-			int seconds = (int) (estimatedTime / 1000) % 60;
-			now = new Date();
-			System.out.println(i + 1 + "/" + simPara[0] + " ended at " + now + ". Duration: " + minutes + "m" + seconds + "s" + " (" + estimatedTime + ")");
+		                tick = runCount++;
+		                long startTime = System.currentTimeMillis();
 
+		                SimController controller = new SimController(simPara, mapPara, influxPara, addedPara);
+		                event.addObserver(controller);
+
+		                String[] inf = { "OFF", "ON" };
+		                Date now = new Date();
+		                String startstr = (runCount) + " sim started at " + now + ". Params: "
+		                        + "GR" + mapPara[0] + "/FD" + mapPara[1]
+		                        + "/I-" + inf[influx] + "/" + influxPara[1]
+		                        + "/M" + m + "/W" + w;
+		                System.out.println(startstr);
+
+		                controller.run();
+
+		                long estimatedTime = System.currentTimeMillis() - startTime;
+		                long minutes = (estimatedTime / 1000) / 60;
+		                int seconds = (int) (estimatedTime / 1000) % 60;
+		                now = new Date();
+
+		                System.out.println(runCount + " ended at " + now
+		                        + ". Duration: " + minutes + "m" + seconds + "s (" + estimatedTime + " ms)");
+		            }
+		        }
+		    }
 		}
 		System.exit(0);
 	}
@@ -144,8 +138,8 @@ public class SimController extends Observable implements Runnable, Observer
 	{
 		isUIOFF = true; //true=UI is off; false = UI is on
 		int runrule = 1; //0=manual, 1=random
-		int simn = 60; //number of simulations
-		runRule(runrule, simn);
+		//int simn = 60; //number of simulations
+		runRule(runrule);
 	}
 
 	@Override
